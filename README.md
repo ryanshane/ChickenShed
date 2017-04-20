@@ -1,6 +1,8 @@
 # ChickenShed
 Arduino and wifi enabled chicken shed with automatic control and email notifications.
 
+Blog: https://debugtopinpoint.wordpress.com/2017/04/08/iot-chicken-shed-arduino-wifi
+
 Features
 
 - Control the door and check how much water is left through a basic website hosted on the chip itself (HTML, and RESTful)
