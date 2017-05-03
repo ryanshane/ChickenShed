@@ -2,11 +2,12 @@
 # Chicken Door
 # (*) Save status to file every 15th minute
 # (*) Warn when the water is too low
-# (*) Open door at a set time (checks status and emails confirmation)
-# (*) Close door at a set time (checks status and emails confirmation)
+# (*) Open door at sunrise based on location (checks status and emails confirmation)
+# (*) Close door at sunset + 1hr based on location (checks status and emails confirmation)
 #
 # Dependencies
 # (*) IP Webcam Android App (free): exposes an android's sensors as a REST endpoint
+# (*) CalcSunTimes.dll -- helper to calculate sunrise and sunset based on latitude and longitude
 #
 # Note:
 # (*) Commands sent to the ChickenShed (esp8266 wifi chip) are done using VBScript beacuse
@@ -14,8 +15,10 @@
 #     This might be to do with the way the LUA / nodeMCU web server handles the connection.
 #
 # Author: Ryan Steller
-# Blog: https://debugtopinpoint.wordpress.com/
+# Blog: https://debugtopinpoint.wordpress.com
 ####################################################################################################
+
+Add-Type -Path "C:\Users\ryans\Google Drive\Development\ChickenDoor\Powershell job\CalcSunTimes.dll"
 
 $lastLogMinute = -1
 $lastDoorAction = -1
@@ -24,6 +27,10 @@ $waterThreshold = 0.5 # Low water warning threshold (kg)
 $waterEmpty = 0.0 # Water empty level
 $waterConatinerWeight = 0.5 # (the container weighs about 0.45kg but there might have been some dirt kicked into it)
 $lastWaterWarning = [DateTime]::MinValue
+
+# Time to open and close depends on the sunrise and sunset times, which can be calculated from latitude and longitude. This works with DST.
+$lat = new-object SunTimes.SunTimes+LatitudeCoords(-37, 48, 51, [SunTimes.SunTimes+LatitudeCoords+Direction]::North)
+$lon = new-object SunTimes.SunTimes+LongitudeCoords(144, 57, 47, [SunTimes.SunTimes+LongitudeCoords+Direction]::East)
 
 # The below IP addresses will need to be configured as static in your router
 $chickenShedUrl = "http://192.168.1.7"
@@ -154,18 +161,22 @@ while($true) {
         }
     }
 
-    # OPEN / CLOSE DOOR (specific times)
-    $timeToOpenDoor = ($dtNow.Hour -eq 7 -and $dtNow.Minute -eq 00)
-    $timeToCloseDoor = ($dtNow.Hour -eq 19 -and $dtNow.Minute -eq 05)
+    # OPEN / CLOSE DOOR times are calculated based on the latitude and longitude (e.g. Melbourne)
+    $sunrise = [SunTimes.SunTimes]::Instance.GetSunriseTime($lat, $lon, [DateTime]::Now);
+    $sunset = [SunTimes.SunTimes]::Instance.GetSunsetTime($lat, $lon, [DateTime]::Now);
+    $sunrise = $sunrise.AddMinutes(0);
+    $sunset = $sunset.AddMinutes(60); # 1 hour after sun set to be sure they're all in
+    $timeToOpenDoor = ($dtNow.Hour -eq $sunrise.Hour -and $dtNow.Minute -eq $sunrise.Minute)
+    $timeToCloseDoor = ($dtNow.Hour -eq $sunset.Hour -and $dtNow.Minute -eq $sunset.Minute)
     
-    $doorActionTimeStamp = "" + $dtNow.Hour + " " + $dtNow.Minute
-
+    $doorActionTimeStamp = "" + $dtNow.Hour + " " + $dtNow.Minute	
     #write-host -f Gray "Check" $doorActionTimeStamp
 
     if($timeToOpenDoor -or $timeToCloseDoor -and $lastDoorAction -ne $doorActionTimeStamp) {
         $lastDoorAction = $doorActionTimeStamp
 
         write-host -f green "Time to open or close"
+		write-host -f Gray "Calculated sunrise / sunset times today: Sunrise: $sunrise, Sunset: $sunset"
 
         $succeeded = $false
         $attempt = 0
