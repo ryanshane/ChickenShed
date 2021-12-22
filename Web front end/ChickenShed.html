@@ -1,0 +1,120 @@
+<html>
+<head>
+	<title>Chicken Shed</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.2">
+	<!-- Styles -->
+	<link href="http://getbootstrap.com/dist/css/bootstrap.min.css" rel="stylesheet">
+	<link href="http://fontawesome.io/assets/font-awesome/css/font-awesome.css" rel="stylesheet">
+	<style type="text/css">
+		.cs-button {
+			width:125px;
+			display:block;
+			margin:3px;
+		}
+	</style>
+	
+	<!-- Dependencies -->
+	<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+</head>
+<body>
+
+<div class="col-sm-12"><h1>Chicken Shed<div id="lblOnline" style="padding-left:8px;" class="fa fa-toggle-off" title="Offline">&nbsp;</div></h1>
+Status: <span id="lblStatus"></span><br />
+Door: <span id="lblDoor"></span><br />
+Water: <span id="lblWaterKg"></span><br />
+<div style="padding-top:10px; font-weight:bold;" class="card-title">Actions:</div>
+<a href="javascript:void(0);" onclick="CS.action('OpenDoorAsJsonp');" class="btn btn-primary cs-button">Open Door</a>
+<a href="javascript:void(0);" onclick="CS.action('CloseDoorAsJsonp');" class="btn btn-primary cs-button">Close Door</a>
+<a href="javascript:void(0);" onclick="CS.action('StopDoorAsJsonp');" class="btn btn-primary cs-button">Stop Door</a>
+<a style="display:none;" href="javascript:void(0);" class="btn btn-primary cs-button">Refresh Status</a>
+
+<br />
+<div id="lblSent" style="display:none;"><div class="fa fa-check-circle-o" style="color:green; display:inline-block;">&nbsp;</div>Command sent to arduino.</div>
+
+<style type="text/css">
+	.red { color:red; }
+</style>
+</div>
+<img style="opacity: 0.2; height: 312px; position: absolute; top: 0px; left: 50px; z-index: -1;" src="https://valwebb.files.wordpress.com/2014/11/rooster.jpg">
+
+<script type="text/javascript">
+
+var CS = window.CS || {};
+CS = (function(){
+	var _off = true;
+	var _refresh = function() {
+		$.getScript({
+			url: "http://192.168.1.7/GetStatusAsJsonp"
+		}).done(function(data, status) {
+			if(_off) {
+				_off = false;
+				$('#lblOnline').attr('class', 'fa fa-toggle-on');
+				$('#lblOnline').attr('title', 'Online');
+			}
+		}).fail(function(data, status){
+			if(!_off) {
+				_off = true;
+				$('#lblOnline').attr('class', 'fa fa-toggle-off red');
+				$('#lblOnline').attr('title', 'Offline');
+			}
+		});
+	};
+	
+	var _action = function(action) {
+		$.getScript({
+			url: "http://192.168.1.7/" + action
+		}).done(function(data, status) {
+			
+		}).fail(function(data, status){
+			
+		});
+		
+	};
+	
+	var _init = function() {
+		_refresh();
+		setInterval(function(){ _refresh(); }, 1000);
+	};
+	
+	// The callback function for the jsonp interface
+	var _callback = function(obj) {
+		if(obj.Door) {
+			$('#lblDoor').text() !== obj.Door ? $('#lblDoor').text(obj.Door + ' % open') : 0;
+			$('#lblStatus').text() !== obj.Status ? $('#lblStatus').text(obj.Status) : 0;
+			$('#lblWaterKg').text() !== obj.WaterKg ? $('#lblWaterKg').text(obj.WaterKg + ' kg') : 0;
+		}
+		else if(obj.RequestStatus) {
+			if(obj.RequestStatus === 'OK') {
+				$("#lblSent" ).fadeIn("fast", function() {
+					setTimeout(function(){
+						$("#lblSent").fadeOut("slow", function() {
+						});
+					}, 2000);
+				});
+			}
+			else {
+				console.log('Failed.');
+			}
+		}
+	};
+	
+	// Public interface
+	return {
+		init: _init,
+		refresh: _refresh,
+		action: _action,
+		callback: _callback
+	}
+})();
+
+window.cb = CS.callback; // Callback function
+
+$(document).ready(function(){
+	// Initialise
+	CS.init();
+})
+
+</script>
+
+</body>
+</html>
